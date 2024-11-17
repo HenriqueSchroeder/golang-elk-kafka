@@ -1,0 +1,90 @@
+x-environment-variables: &default-env
+  ELASTIC_USERNAME: elastic
+  ELASTIC_PASSWORD: elastic_password
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    environment:
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_NAMES: PLAINTEXT,CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT,PLAINTEXT
+      KAFKA_LISTENER_NAME: CONTROLLER
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./scripts/setup-kafka.sh:/setup-kafka.sh
+    command: ["bash", "/setup-kafka.sh"]
+
+  mariadb:
+    image: mariadb:10.4.13
+    container_name: mariadb
+    environment:
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root_password 
+      MYSQL_DATABASE: company
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
+    container_name: elasticsearch
+    environment:
+      discovery.type: single-node
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      xpack.security.enabled: true
+      xpack.security.http.ssl.enabled: false
+      xpack.security.transport.ssl.enabled: false      
+      <<: *default-env
+
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.10.2
+    container_name: logstash
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5000:5000"
+      - "5044:5044"
+      - "9600:9600"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.10.2
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: kibana_password
+      <<: *default-env
+
+    volumes:
+      - ./scripts/update-password-kibana.sh:/update-password-kibana.sh
+    command: ["bash", "/update-password-kibana.sh"]
+
+volumes:
+  kafka_data:
+  mariadb_data:
+  es_data:
