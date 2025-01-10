@@ -29,3 +29,15 @@ restart:
 # Check logs
 logs:
 	docker-compose logs -f
+
+# Builds
+build:
+	go build -o bin/server cmd/server/server.go
+
+# Run the app
+run-app:
+	go run cmd/server/server.go
+
+# Run tests
+test:
+	go test -v ./...
