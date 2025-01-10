@@ -6,13 +6,15 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: kafka
+    networks:
+      - kafka_network
     environment:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_LISTENER_NAMES: PLAINTEXT,CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT,PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENER_NAMES: PLAINTEXT,CONTROLLER,EXTERNAL
+      KAFKA_LISTENER_SECURITY_PROTOCOL: PLAINTEXT,PLAINTEXT,PLAINTEXT
       KAFKA_LISTENER_NAME: CONTROLLER
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -20,12 +22,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_MIN_INSYNC_REPLICAS: 1
-      
     ports:
       - "9092:9092"
+      - "9094:9094"
     volumes:
       - kafka_data:/var/lib/kafka/data
       - ./scripts/setup-kafka.sh:/setup-kafka.sh
@@ -36,23 +38,27 @@ services:
     container_name: mariadb
     environment:
       MYSQL_USER: root
-      MYSQL_PASSWORD: root_password 
+      MYSQL_PASSWORD: root_password
       MYSQL_DATABASE: company
       MYSQL_ROOT_PASSWORD: root_password
     ports:
       - "3306:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
+    networks:
+      - kafka_network
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.10.2
     container_name: elasticsearch
+    networks:
+      - kafka_network
     environment:
       discovery.type: single-node
       ES_JAVA_OPTS: -Xms1g -Xmx1g
       xpack.security.enabled: true
       xpack.security.http.ssl.enabled: false
-      xpack.security.transport.ssl.enabled: false      
+      xpack.security.transport.ssl.enabled: false
       <<: *default-env
 
     ports:
@@ -63,16 +69,32 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:8.10.2
     container_name: logstash
-    volumes:
-      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    networks:
+      - kafka_network
     ports:
       - "5000:5000"
       - "5044:5044"
       - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: -Xmx1g -Xms1g
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: logstash_writer
+      ELASTICSEARCH_PASSWORD: logstash_password
+      <<: *default-env
+
+    volumes:
+      - ./logs:/usr/share/logstash/logs
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logstash.yml:/usr/share/logstash/config/logstash.yml
+
+    depends_on:
+      - elasticsearch
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.10.2
     container_name: kibana
+    networks:
+      - kafka_network
     ports:
       - "5601:5601"
     environment:
@@ -82,10 +104,37 @@ services:
       <<: *default-env
 
     volumes:
-      - ./scripts/update-password-kibana.sh:/update-password-kibana.sh
-    command: ["bash", "/update-password-kibana.sh"]
+      - ./scripts/update-password.sh:/update-password.sh
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "bash /update-password.sh && echo 'Iniciando o Kibana...' && exec /usr/local/bin/kibana-docker",
+      ]
+    depends_on:
+      - elasticsearch
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    networks:
+      - kafka_network
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kafka-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: ""
+      KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
+    depends_on:
+      - kafka
 
 volumes:
   kafka_data:
   mariadb_data:
   es_data:
+
+networks:
+  kafka_network:
+  default:
+    driver: bridge

@@ -42,7 +42,3 @@ if [ $? -ne 0 ]; then
   echo "Erro ao atualizar a senha do usuário $ELASTICSEARCH_USERNAME. Verifique as permissões."
   exit 1
 fi
-
-# Inicia o Kibana
-echo "Iniciando o Kibana..."
-exec /usr/local/bin/kibana-docker
