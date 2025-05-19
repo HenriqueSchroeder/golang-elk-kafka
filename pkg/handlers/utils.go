@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/kafka"
+	"github.com/HenriqueSchroeder/golang-elk-kafka/internal/kafka"
 )
 
 /**

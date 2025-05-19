@@ -4,9 +4,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/config"
+	"github.com/HenriqueSchroeder/golang-elk-kafka/config"
+	"github.com/HenriqueSchroeder/golang-elk-kafka/internal/kafka"
 	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/handlers"
-	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/kafka"
 )
 
 var producer *kafka.Producer

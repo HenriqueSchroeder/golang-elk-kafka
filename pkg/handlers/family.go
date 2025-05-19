@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/HenriqueSchroeder/golang-elk-kafka/internal/kafka"
 	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/contracts"
-	"github.com/HenriqueSchroeder/golang-elk-kafka/pkg/kafka"
 )
 
 /**
